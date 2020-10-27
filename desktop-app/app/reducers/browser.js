@@ -23,6 +23,9 @@ import {
   TOGGLE_ALL_DEVICES_MUTED,
   TOGGLE_DEVICE_MUTED,
   NEW_THEME,
+  NEW_WORKSPACE,
+  SET_WORKSPACE,
+  UPDATE_WORKSPACE,
 } from '../actions/browser';
 import {
   CHANGE_ACTIVE_THROTTLING_PROFILE,
@@ -44,6 +47,7 @@ import {
   USER_PREFERENCES,
   CUSTOM_DEVICES,
   NETWORK_CONFIGURATION,
+  ACTIVE_WORKSPACE_CONFIGURATION,
 } from '../constants/settingKeys';
 import {
   getHomepage,
@@ -161,6 +165,12 @@ type NetworkConfigurationType = {
   proxy: NetworkProxyProfileType,
 };
 
+type WorkspaceType = {
+  id: string,
+  name: string,
+  devices: Array<Device>,
+};
+
 export type BrowserStateType = {
   devices: Array<Device>,
   homepage: string,
@@ -179,6 +189,8 @@ export type BrowserStateType = {
   windowSize: WindowSizeType,
   allDevicesMuted: boolean,
   networkConfiguration: NetworkConfigurationType,
+  workspace: WorkspaceType,
+  availableWorkspaces: Array<WorkspaceType>,
 };
 
 let _activeDevices = null;
@@ -289,6 +301,27 @@ function _setNetworkConfiguration(
   settings.set(NETWORK_CONFIGURATION, networkConfiguration);
 }
 
+function _getWorkspaces() {
+  const defaultWorkspace = {
+    id: 'default-workspace',
+    name: 'Default Workspace',
+    devices: _getActiveDevices(),
+    isDefault: true,
+  };
+
+  // TODO: load devices from settings or electron-store
+  const userWorkspaces = [];
+
+  const normalized = {
+    ids: ['default-workspace'],
+    byId: {
+      'default-workspace': defaultWorkspace,
+    },
+  };
+
+  return normalized;
+}
+
 export default function browser(
   state: BrowserStateType = {
     devices: _getActiveDevices(),
@@ -332,6 +365,11 @@ export default function browser(
     windowSize: getWindowSize(),
     allDevicesMuted: false,
     networkConfiguration: _getNetworkConfiguration(),
+    availableWorkspaces: _getWorkspaces(),
+    workspace: settings.get(
+      ACTIVE_WORKSPACE_CONFIGURATION,
+      'default-workspace'
+    ),
   },
   action: Action
 ) {
@@ -515,6 +553,40 @@ export default function browser(
         networkConfiguration: {
           ...state.networkConfiguration,
           proxy: action.profile,
+        },
+      };
+
+    case SET_WORKSPACE:
+      return {
+        ...state,
+        workspace: action.workspaceId,
+      };
+
+    case NEW_WORKSPACE:
+      return {
+        ...state,
+        workspace: action.workspace.id,
+        availableWorkspaces: {
+          ids: [...state.availableWorkspaces.ids, action.workspace.id],
+          byId: Object.assign(state.availableWorkspaces.byId, {
+            [action.workspace.id]: {
+              ...action.workspace,
+              devices: _getActiveDevices(),
+            },
+          }),
+        },
+      };
+
+    case UPDATE_WORKSPACE:
+      return {
+        ...state,
+        availableWorkspaces: {
+          ids: [...state.availableWorkspaces.ids],
+          byId: Object.assign(state.availableWorkspaces.byId, {
+            [action.workspace.id]: {
+              ...action.workspace,
+            },
+          }),
         },
       };
     default:
